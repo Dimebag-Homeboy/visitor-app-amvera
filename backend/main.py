@@ -10,7 +10,7 @@ from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from database import engine
+from database import engine, Base
 from routers import auth, visitors, users, logs
 import models
 from limiter import limiter
@@ -49,10 +49,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise e
 
 # ========== ФУНКЦИИ ==========
+def create_tables():
+    """Создаёт все таблицы, если их нет"""
+    Base.metadata.create_all(bind=engine)
+    logger.info("Tables created/verified")
+
 def create_test_users():
-    if os.getenv("ENVIRONMENT", "development") != "development":
-        logger.info("Skipping test users creation (not development)")
-        return
+    # Всегда создаём тестовых пользователей (даже в production для демонстрации)
     from sqlalchemy.orm import Session
     from database import SessionLocal
     from utils import get_password_hash
@@ -93,7 +96,8 @@ def create_test_users():
 def cleanup_expired_tokens():
     try:
         with engine.connect() as conn:
-            conn.execute(text("DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = TRUE"))
+            # SQL-запрос, совместимый с SQLite и PostgreSQL
+            conn.execute(text("DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP OR revoked = 1"))
             conn.commit()
         logger.info("Expired refresh tokens cleaned up")
     except Exception as e:
@@ -102,6 +106,7 @@ def cleanup_expired_tokens():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    create_tables()
     cleanup_expired_tokens()
     create_test_users()
     yield
