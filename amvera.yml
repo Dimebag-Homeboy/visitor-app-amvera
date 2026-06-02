@@ -1,0 +1,13 @@
+meta:
+  name: visitor-app
+
+build:
+  dockerfile: Dockerfile
+
+run:
+  command: uvicorn main:app --host 0.0.0.0 --port 8000
+  ports:
+    - 8000
+  env:
+    - ENVIRONMENT=production
+    - SECRET_KEY=change_me_please
