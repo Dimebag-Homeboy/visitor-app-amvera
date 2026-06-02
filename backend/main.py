@@ -48,14 +48,14 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             logger.exception(f"Unhandled exception: {request.method} {request.url}")
             raise e
 
-# ========== ФУНКЦИИ ==========
-def create_tables():
-    """Создаёт все таблицы, если их нет"""
-    Base.metadata.create_all(bind=engine)
-    logger.info("Tables created/verified")
+# ========== СОЗДАНИЕ ТАБЛИЦ (СРАЗУ ПРИ ИМПОРТЕ) ==========
+logger.info("Creating tables if not exist...")
+Base.metadata.create_all(bind=engine)
+logger.info("Tables check completed.")
 
+# ========== ФУНКЦИИ ==========
 def create_test_users():
-    # Всегда создаём тестовых пользователей (даже в production для демонстрации)
+    # Всегда создаём тестовых пользователей
     from sqlalchemy.orm import Session
     from database import SessionLocal
     from utils import get_password_hash
@@ -96,7 +96,7 @@ def create_test_users():
 def cleanup_expired_tokens():
     try:
         with engine.connect() as conn:
-            # SQL-запрос, совместимый с SQLite и PostgreSQL
+            # SQL для SQLite и PostgreSQL
             conn.execute(text("DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP OR revoked = 1"))
             conn.commit()
         logger.info("Expired refresh tokens cleaned up")
@@ -106,11 +106,10 @@ def cleanup_expired_tokens():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    create_tables()
     cleanup_expired_tokens()
     create_test_users()
     yield
-    # Shutdown (доп. очистка при необходимости)
+    # Shutdown
 
 app = FastAPI(title="Visitor Registration API", description="Система регистрации посетителей", version="1.0.0", lifespan=lifespan)
 
