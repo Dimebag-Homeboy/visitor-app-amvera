@@ -1,5 +1,6 @@
 meta:
   name: visitor-app
+  toolchain: Dockerfile
 
 build:
   dockerfile: Dockerfile
