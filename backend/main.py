@@ -15,7 +15,7 @@ from routers import auth, visitors, users, logs
 import models
 from limiter import limiter
 
-# ========== НАСТРОЙКА ЛОГИРОВАНИЯ С РОТАЦИЕЙ ==========
+# ========== НАСТРОЙКА ЛОГИРОВАНИЯ ==========
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -38,7 +38,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("visitors_app")
 
-# ========== MIDDLEWARE ДЛЯ ЛОГИРОВАНИЯ ОШИБОК ==========
+# ========== MIDDLEWARE ==========
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         try:
@@ -48,14 +48,14 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             logger.exception(f"Unhandled exception: {request.method} {request.url}")
             raise e
 
-# ========== СОЗДАНИЕ ТАБЛИЦ (СРАЗУ ПРИ ИМПОРТЕ) ==========
+# ========== ГАРАНТИРОВАННОЕ СОЗДАНИЕ ТАБЛИЦ ==========
 logger.info("Creating tables if not exist...")
 Base.metadata.create_all(bind=engine)
 logger.info("Tables check completed.")
 
 # ========== ФУНКЦИИ ==========
 def create_test_users():
-    # Всегда создаём тестовых пользователей
+    """Создаёт тестовых пользователей, если их нет (даже в production)"""
     from sqlalchemy.orm import Session
     from database import SessionLocal
     from utils import get_password_hash
@@ -96,7 +96,6 @@ def create_test_users():
 def cleanup_expired_tokens():
     try:
         with engine.connect() as conn:
-            # SQL для SQLite и PostgreSQL
             conn.execute(text("DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP OR revoked = 1"))
             conn.commit()
         logger.info("Expired refresh tokens cleaned up")
@@ -105,11 +104,9 @@ def cleanup_expired_tokens():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     cleanup_expired_tokens()
     create_test_users()
     yield
-    # Shutdown
 
 app = FastAPI(title="Visitor Registration API", description="Система регистрации посетителей", version="1.0.0", lifespan=lifespan)
 
