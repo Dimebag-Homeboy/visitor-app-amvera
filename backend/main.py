@@ -48,14 +48,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             logger.exception(f"Unhandled exception: {request.method} {request.url}")
             raise e
 
-# ========== ГАРАНТИРОВАННОЕ СОЗДАНИЕ ТАБЛИЦ ==========
-logger.info("Creating tables if not exist...")
-Base.metadata.create_all(bind=engine)
-logger.info("Tables check completed.")
-
 # ========== ФУНКЦИИ ==========
 def create_test_users():
-    """Создаёт тестовых пользователей, если их нет (даже в production)"""
+    """Создаёт тестовых пользователей, если их нет (всегда)"""
     from sqlalchemy.orm import Session
     from database import SessionLocal
     from utils import get_password_hash
@@ -96,15 +91,23 @@ def create_test_users():
 def cleanup_expired_tokens():
     try:
         with engine.connect() as conn:
+            # Исправленный SQL для SQLite
             conn.execute(text("DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP OR revoked = 1"))
             conn.commit()
         logger.info("Expired refresh tokens cleaned up")
     except Exception as e:
         logger.error(f"Error cleaning tokens: {e}")
 
+# ========== LIFESPAN ==========
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 1. ВАЖНО: создаём таблицы ПЕРВЫМ ДЕЛОМ
+    logger.info("Creating tables...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("Tables created.")
+    # 2. Теперь можно чистить токены
     cleanup_expired_tokens()
+    # 3. И создавать пользователей
     create_test_users()
     yield
 
